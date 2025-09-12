@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+
+.LoginPage{
+  overflow-y: hidden;
+}
+/* Make toast progress bar white */
+.Toastify__progress-bar {
+  background: #fff !important;
+}
+
+/* Make success icon white */
+.Toastify__toast-icon svg {
+  fill: #fff !important;
+}
+.react-datepicker-popper {
+  z-index: 9999 !important;
+  gap: 40px;
+}
+/* Add this in your CSS file */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+
+
+
+
