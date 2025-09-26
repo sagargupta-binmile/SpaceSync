@@ -1,23 +1,16 @@
-# Use Node.js LTS image
-FROM node:22-alpine
 
-# Set working directory
-WORKDIR /usr/src/app
-
-# Copy package.json & lock file
+FROM node:20-alpine AS builder
+WORKDIR /app
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
-
-# Copy the entire app
 COPY . .
-
-# Build the app
 RUN npm run build
 
-# Expose port
-EXPOSE 3000
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
 
-# Run app
-CMD ["node", "dist/main"]
+RUN npm install --omit=dev --ignore-scripts
+COPY --from=builder /app/dist ./dist
+EXPOSE 3000
+CMD ["node", "dist/main.js"]

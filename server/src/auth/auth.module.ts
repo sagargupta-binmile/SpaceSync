@@ -18,7 +18,7 @@ import { CommonModule } from 'src/common/common.module';
       secret: process.env.JWT_SECRET || 'dedede123',
       signOptions: { expiresIn: '1h' },
     }),
-    HttpModule, // ✅ Add this so HttpService can be injected
+    HttpModule, 
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleStrategy],

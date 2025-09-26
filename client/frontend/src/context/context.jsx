@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import {jwtDecode} from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 
-const backend = 'http://localhost:4000';
+const backend = import.meta.env.VITE_BACKEND_URL;
 const UserContext = createContext();
 
 const api = axios.create({ baseURL: backend });
@@ -20,9 +20,8 @@ export function UserContextProvider({ children }) {
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [rooms, setRooms] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [manager, setManager] = useState([]);
+  const [employees, setEmployees] = useState([]);
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -31,8 +30,17 @@ export function UserContextProvider({ children }) {
     if (storedToken) {
       try {
         const decoded = jwtDecode(JSON.parse(storedToken));
+
         if (decoded.exp * 1000 > Date.now()) {
-          setUser(decoded);
+          setUser({
+            id: decoded.id,
+            name: decoded.name,
+            email: decoded.email,
+            role: decoded.role,
+            isBlocked: decoded.isBlocked,
+            googleAccessToken: decoded.googleAccessToken,
+            googleRefreshToken: decoded.googleRefreshToken,
+          });
         } else {
           localStorage.removeItem('token');
           setUser(null);
@@ -46,15 +54,15 @@ export function UserContextProvider({ children }) {
     setLoading(false);
   }, []);
 
+
+
   const loginWithGoogle = async (email) => {
     try {
       const res = await api.post('/auth/google-login', { email });
       const { access_token } = res.data;
 
-      
       localStorage.setItem('token', JSON.stringify(access_token));
 
-  
       const decodedUser = jwtDecode(access_token);
       setUser(decodedUser);
 
@@ -70,6 +78,7 @@ export function UserContextProvider({ children }) {
     localStorage.removeItem('token');
     setUser(null);
     toast.info('Logged out successfully');
+    window.location.href = '/login';
   };
 
   // Booking functions
@@ -79,28 +88,29 @@ export function UserContextProvider({ children }) {
       toast.success(res.data.message || 'Booking successful');
       await fetchBookings();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to book the room');
+      const message =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Something went wrong';
+      toast.error(message);
     }
   };
 
-  const updateBooking = async (room_id, booking_id, start_time, end_time) => {
+  const updateBooking = async (room_id, booking_id, start_time, end_time, updateFuture) => {
     try {
       const payload = {
         booking_id,
         room_id,
-        start_time:
-          start_time instanceof Date ? start_time.toISOString() : start_time,
+        start_time: start_time instanceof Date ? start_time.toISOString() : start_time,
         end_time: end_time instanceof Date ? end_time.toISOString() : end_time,
+        updateFuture,
       };
 
       const res = await api.patch('/bookings', payload);
       const updatedBooking = res.data;
-      updatedBooking.start_time = new Date(
-        updatedBooking.start_time ?? updatedBooking.startTime,
-      );
-      updatedBooking.end_time = new Date(
-        updatedBooking.end_time ?? updatedBooking.endTime,
-      );
+      updatedBooking.start_time = new Date(updatedBooking.start_time ?? updatedBooking.startTime);
+      updatedBooking.end_time = new Date(updatedBooking.end_time ?? updatedBooking.endTime);
 
       toast.success('Booking updated successfully');
       return updatedBooking;
@@ -111,10 +121,10 @@ export function UserContextProvider({ children }) {
     }
   };
 
-  const deleteBooking = async (booking_id) => {
+  const deleteBooking = async (booking_id, deleteSeries) => {
     if (!booking_id) return toast.error('Invalid booking ID');
     try {
-      await api.delete(`/bookings/${booking_id}`);
+      await api.delete(`/bookings/${booking_id}`, { data: { deleteSeries } });
       toast.success('Deleted successfully');
       await fetchBookings();
     } catch (err) {
@@ -122,7 +132,37 @@ export function UserContextProvider({ children }) {
     }
   };
 
-  // Fetching functions
+  const fetchEmployees = async (page = 1, isActive, email, name) => {
+    try {
+      const params = new URLSearchParams();
+      if (isActive !== undefined) params.append('isActive', isActive);
+      if (email) params.append('email', email);
+      if (name) params.append('name', name);
+      params.append('page', String(page));
+
+      const url = params.toString() ? `/users?${params.toString()}` : `/users`;
+
+      const res = await api.get(url);
+      setEmployees(res.data.users || []);
+      return res.data;
+    } catch (err) {
+      console.error('Fetch employees error:', err);
+    }
+  };
+  const toggleBlockUser = async (email) => {
+    try {
+      const res = await api.patch(`/users/toggle-block`, { email });
+
+      toast.success(res.data.message);
+
+      setEmployees((prev) =>
+        prev.map((emp) => (emp.email === email ? { ...emp, isBlocked: !emp.isBlocked } : emp)),
+      );
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error toggling user');
+    }
+  };
+
   const fetchRooms = async () => {
     try {
       const res = await api.get('/rooms');
@@ -132,20 +172,35 @@ export function UserContextProvider({ children }) {
     }
   };
 
-  const fetchBookings = async ({ userId, role, page = 1 } = {}) => {
+  const fetchBookings = async ({
+    userId,
+    role,
+    page = 1,
+    roomId,
+    filterMode,
+    fromDate,
+    toDate,
+  } = {}) => {
     try {
       const params = new URLSearchParams();
+
       if (userId) params.append('userId', userId);
       if (role) params.append('role', role);
+      if (roomId) params.append('roomId', roomId);
+      if (filterMode) params.append('filterMode', filterMode);
+
+      if (filterMode === 'range') {
+        if (fromDate) params.append('fromDate', fromDate.toISOString());
+        if (toDate) params.append('toDate', toDate.toISOString());
+      }
+
       params.append('page', page);
 
-      const url = params.toString()
-        ? `/bookings?${params.toString()}`
-        : '/bookings';
+      const url = params.toString() ? `/bookings?${params.toString()}` : '/bookings';
       const res = await api.get(url);
-      const data = res.data;
 
-      setBookings(data.bookings);
+      const data = res.data;
+      setBookings(data.bookings || []);
       return data;
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error fetching bookings');
@@ -154,27 +209,10 @@ export function UserContextProvider({ children }) {
     }
   };
 
-  const fetchEmployees = async () => {
-    try {
-      const res = await api.get('/users');
-      setEmployees(res.data || []);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error fetching employees');
-      setEmployees([]);
-    }
-  };
-
-  const fetchManager = async () => {
-    try {
-      const res = await api.get('/users/manager');
-      setManager(res.data);
-    } catch (error) {}
-  };
-
   return (
     <UserContext.Provider
       value={{
-        loginWithGoogle, // ✅ Google login added
+        loginWithGoogle,
         logout,
         user,
         setUser,
@@ -186,12 +224,11 @@ export function UserContextProvider({ children }) {
         rooms,
         fetchRooms,
         fetchBookings,
-        employees,
         fetchEmployees,
+        employees,
         loading,
         setLoading,
-        fetchManager,
-        manager,
+        toggleBlockUser,
       }}
     >
       {children}
@@ -201,7 +238,6 @@ export function UserContextProvider({ children }) {
 
 export function useUserContext() {
   const context = useContext(UserContext);
-  if (!context)
-    throw new Error('useUserContext must be used within a UserContextProvider');
+  if (!context) throw new Error('useUserContext must be used within a UserContextProvider');
   return context;
 }

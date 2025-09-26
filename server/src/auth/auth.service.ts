@@ -4,7 +4,6 @@ import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { EmployeeSyncService } from 'src/common/employee-sync.service';
-import { UserRole } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -14,41 +13,33 @@ export class AuthService {
     private readonly employeeSyncService: EmployeeSyncService,
   ) {}
 
-  async loginWithGmail(email: string): Promise<AuthResponseDto> {
+  async loginWithGmail(email: string, googleAccessToken?: string, googleRefreshToken?: string) {
     if (!email.endsWith('@binmile.com')) {
       throw new UnauthorizedException('Only @binmile.com emails are allowed');
     }
 
-    const normalizedEmail = email.toLowerCase();
+    let user = await this.usersService.findByEmail(email);
 
-    // 1️⃣ Use cached employees to validate
-    const employees = (await this.employeeSyncService.getCachedEmployees()) || [];
-    const userData = employees.find((emp) => emp.email === normalizedEmail);
-
-    if (!userData) {
-      throw new UnauthorizedException('User not found in RMS');
-    }
-
-    // 2️⃣ Check if user exists in DB using normalized email
-    let user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
-      // Create user if not present in DB
+      // create user if not exists
+      const employees = await this.employeeSyncService.getCachedEmployees();
+      const userData = employees.find((emp) => emp.email === email);
+      if (!userData) throw new UnauthorizedException('User not found in RMS');
+
       user = await this.usersService.create({
-        email: normalizedEmail,
+        email,
         name: userData.employee_name,
-        password: '',
-        role: 'employee' as UserRole,
-        managerId: null,
+        role: userData.role || 'employee',
       });
     }
 
-    // 3️⃣ Create JWT token
     const payload = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      managerId: user.managerId,
+      googleAccessToken,
+      googleRefreshToken,
     };
 
     return {

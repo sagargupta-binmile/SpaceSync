@@ -1,7 +1,6 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
-
-.LoginPage{
+.LoginPage {
   overflow-y: hidden;
 }
 /* Make toast progress bar white */
@@ -22,11 +21,6 @@
   display: none;
 }
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
-
-
-
-
-

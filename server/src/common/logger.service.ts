@@ -9,15 +9,7 @@ export class LoggerService implements NestLoggerService {
     this.logger = winston.createLogger({
       level: 'info',
       format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
-      transports: [
-        new winston.transports.Console(),
-        // Uncomment below to enable file rotation
-        // new winston.transports.DailyRotateFile({
-        //   filename: 'logs/application-%DATE%.log',
-        //   datePattern: 'YYYY-MM-DD',
-        //   maxFiles: '14d'
-        // })
-      ],
+      transports: [new winston.transports.Console()],
     });
   }
 

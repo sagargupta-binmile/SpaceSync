@@ -1,29 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useUserContext } from '../context/context';
-import { MdEvent, MdFilterList } from 'react-icons/md';
-
+import { MdChair, MdEvent, MdFilterList } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import Select from 'react-select';
 
+const CustomInput = forwardRef(({ value, onClick }, ref) => (
+  <input
+    readOnly
+    value={value}
+    onClick={onClick}
+    ref={ref}
+    className="w-full md:w-[70%] border border-gray-300 p-3 bg-white rounded-xl cursor-pointer"
+  />
+));
+
 export default function BookRoom() {
-  const { roomBooking, bookings, rooms, fetchRooms, fetchBookings, user } =
-    useUserContext();
+  const { roomBooking, bookings, rooms, fetchRooms, fetchBookings, user } = useUserContext();
 
   const roundToNextFive = (date) => {
     const newDate = new Date(date);
     const minutes = newDate.getMinutes();
     const remainder = minutes % 30;
-
-    if (remainder !== 0) {
-      newDate.setMinutes(minutes + (30 - remainder));
-    }
+    if (remainder !== 0) newDate.setMinutes(minutes + (30 - remainder));
     newDate.setSeconds(0);
     newDate.setMilliseconds(0);
-
     return newDate;
   };
 
@@ -32,120 +36,23 @@ export default function BookRoom() {
 
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [startTime, setStartTime] = useState(now);
+  const [startDate, setStartDate] = useState(now);
   const [endTime, setEndTime] = useState(ahead);
   const [buttonDisabled, setButtonDisabled] = useState(false);
 
-  const [filterRoom, setFilterRoom] = useState(
-    () => localStorage.getItem('filterRoom') || 'all',
-  );
-  const [filterMode, setFilterMode] = useState(
-    () => localStorage.getItem('filterMode') || 'upcoming',
-  );
-  const [fromDate, setFromDate] = useState(() => {
-    const stored = localStorage.getItem('fromDate');
-    return stored ? new Date(stored) : null;
-  });
-  const [toDate, setToDate] = useState(() => {
-    const stored = localStorage.getItem('toDate');
-    return stored ? new Date(stored) : null;
-  });
+  const [filterRoom, setFilterRoom] = useState('all');
+  const [filterMode, setFilterMode] = useState('upcoming');
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
 
   const [showFilters, setShowFilters] = useState(false);
-
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    if (!user) return;
-    fetchRooms();
-    fetchBookings();
-  }, [user]);
+  const [recurrenceRule, setRecurrenceRule] = useState(null);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState(null);
 
-  useEffect(() => {
-    if (fromDate) localStorage.setItem('fromDate', fromDate.toISOString());
-    else localStorage.removeItem('fromDate');
-  }, [fromDate]);
-
-  useEffect(() => {
-    if (toDate) localStorage.setItem('toDate', toDate.toISOString());
-    else localStorage.removeItem('toDate');
-  }, [toDate]);
-
-  useEffect(() => {
-    const now = new Date();
-    if (startTime <= now) {
-      const rounded = roundToNextFive(now);
-      setStartTime(rounded);
-
-      const newEnd = new Date(rounded.getTime() + 30 * 60 * 1000);
-      setEndTime(newEnd);
-    }
-  }, [startTime]);
-
-  const handleBooking = async (e) => {
-    e.preventDefault();
-    if (buttonDisabled) return;
-    setButtonDisabled(true);
-    setTimeout(() => setButtonDisabled(false), 1500);
-
-    if (!selectedRoom || !startTime || !endTime) {
-      toast.error('All fields are required');
-      return;
-    }
-
-    try {
-      await roomBooking({
-        room_id: String(selectedRoom),
-        employee_id: String(user.id),
-        startTime: new Date(
-          new Date(startTime).getTime() + 1 * 30 * 1000,
-        ).toISOString(),
-        endTime: new Date(endTime).toISOString(),
-      });
-      await fetchBookings();
-    } catch (err) {}
-  };
-
-  const filterBookings = (slots) => {
-    const now = new Date();
-    return slots
-      .filter((slot) => {
-        const start = new Date(slot.start_time);
-        const end = new Date(slot.end_time);
-
-        if (fromDate && start < fromDate) return false;
-        if (toDate && end > toDate) return false;
-
-        if (filterMode === 'today')
-          return start.toDateString() === now.toDateString();
-        if (filterMode === 'upcoming') return start > now;
-        return true;
-      })
-      .sort((a, b) => new Date(b.start_time) - new Date(a.start_time)); // latest first
-  };
-
-  const getFilteredBookings = () => {
-    let allSlots = [];
-    rooms.forEach((room) => {
-      // Always apply the room filter
-      if (filterRoom !== 'all' && room.id !== filterRoom) return;
-      const roomBookings =
-        bookings.find((b) => b.room_id === room.id)?.bookings || [];
-      allSlots.push(
-        ...roomBookings.map((slot) => ({
-          ...slot,
-          roomName: room.name,
-        })),
-      );
-    });
-    return filterBookings(allSlots);
-  };
-
-  const roomOptions = rooms.map((room) => ({
-    value: room.id,
-    label: room.name,
-  }));
+  const roomOptions = rooms.map((r) => ({ value: r.room_id, label: r.room_name }));
 
   const customStyles = {
     control: (provided, state) => ({
@@ -184,138 +91,230 @@ export default function BookRoom() {
     }),
   };
 
-  const filteredBookings = getFilteredBookings();
-  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
-  const paginatedBookings = filteredBookings.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  useEffect(() => {
+    if (!user) return;
+    fetchRooms();
+  }, [user]);
 
-  const handlePageChange = (page) => setCurrentPage(page);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterRoom, filterMode, fromDate, toDate]);
+
+  const loadBookings = async (page = 1) => {
+    if (!user) return;
+    try {
+      const { totalPages } = await fetchBookings({
+        page,
+        roomId: filterRoom !== 'all' ? filterRoom : undefined,
+        filterMode,
+        fromDate,
+        toDate,
+      });
+      setTotalPages(totalPages);
+    } catch (err) {
+      
+    }
+  };
+
+  useEffect(() => {
+    loadBookings(currentPage);
+  }, [currentPage, user, filterRoom, filterMode, fromDate, toDate]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = roundToNextFive(new Date());
+      setStartTime(now);
+    }, 60 * 1000);
+    setStartTime(roundToNextFive(new Date()));
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleBooking = async (e) => {
+    e.preventDefault();
+    if (buttonDisabled) return;
+    setButtonDisabled(true);
+    setTimeout(() => setButtonDisabled(false), 1500);
+
+    if (!selectedRoom || !startTime || !endTime) {
+      toast.error('All fields are required');
+      return;
+    }
+
+    try {
+      const payload = {
+        room_id: String(selectedRoom),
+        employee_id: String(user.id),
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        recurrenceRule: recurrenceRule || null,
+        recurrenceEndDate: recurrenceEndDate ? recurrenceEndDate.toISOString() : null,
+      };
+
+      const resMessage = await roomBooking(payload);
+      loadBookings(currentPage);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        toast.error('User is not allowed to make bookings');
+      } else if (err.response?.status === 409) {
+        toast.error(err.response.data?.message || 'Booking conflict detected');
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to create booking');
+      }
+    }
+  };
+
+  const handlePageChange = (page) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
+  const firstname = user.name.split(' ')[0];
 
   return (
     <div className="h-full flex justify-center items-start py-4 px-4 sm:px-6 lg:px-8">
-      <div className="bg-white/70 backdrop-blur-xl shadow-xl shadow-[#C4B6A6]/40 rounded-3xl w-full max-h-[85vh]  h-auto overflow-y-auto mb-4 scrollbar-hide p-4 sm:p-8 lg:p-8 border border-[#E0D4C7]">
+      <div className="bg-white/70 backdrop-blur-xl shadow-xl shadow-[#C4B6A6]/40 rounded-3xl w-full h-screen md:max-h-[82vh] overflow-y-auto mb-4 scrollbar-hide p-4 sm:p-8 lg:p-6 border border-[#E0D4C7]">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Booking Form */}
-          <form onSubmit={handleBooking} className="space-y-4 sm:space-y-5">
+          <form onSubmit={handleBooking} className="space-y-4 sm:space-y-5 ">
+            {/* User Info */}
             <div className="flex items-center gap-3 mt-2">
-              {/* Icon Circle */}
               <div className="w-10 h-10 bg-[#7A5C45] text-white flex items-center justify-center rounded-full shadow-md">
                 <MdEvent className="text-xl" />
               </div>
-
-              {/* Employee name + subtitle */}
               <div className="flex flex-col">
-                <span className="text-md font-semibold text-[#3C2F2F]">
-                  {user.name}
-                </span>
-                <span className="text-sm text-gray-500">Booking done by</span>
+                <span className="text-md font-semibold text-[#3C2F2F]">{firstname}</span>
+                <span className="text-sm text-gray-500">Booked by</span>
               </div>
             </div>
 
+            {/* Room Selection */}
             <div>
-              <h2 className="text-sm font-medium mb-2 text-gray-700">
-                Select a Room
-              </h2>
+              <h2 className="text-sm font-medium mb-2 text-gray-700">Select a Room</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {rooms.map((room) => (
                   <div
-                    key={room.id}
+                    key={room.room_id}
                     onClick={() => {
-                      setFilterRoom(room.id); // keep room filter applied
-                      setSelectedRoom(room.id);
+                      setFilterRoom(room.room_id);
+                      setSelectedRoom(room.room_id);
                     }}
-                    className={`cursor-pointer p-2 rounded-xl border shadow-md transition-all ${
-                      filterRoom === room.id
+                    className={`relative cursor-pointer p-4 rounded-2xl border shadow-md transition-all duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg ${
+                      filterRoom === room.room_id
                         ? 'bg-[#7A5C45] text-white border-[#7A5C45]'
-                        : 'bg-white hover:bg-gray-100 border-gray-300'
+                        : 'bg-white hover:bg-gray-50 border-gray-200'
                     }`}
                   >
-                    <h3 className="text-md text-center">{room.name}</h3>
+                    {/* Room Name */}
+                    <h3 className="text-xs font-semibold text-center transition-opacity duration-300">
+                      {room.room_name}
+                    </h3>
+
+                    {/* Capacity shown only on hover */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-[#7A5C45] bg-opacity-90 rounded-2xl opacity-0 hover:opacity-100 transition-opacity duration-300">
+                      <h3 className="text-xs font-semibold">{room.room_name}</h3>
+                      <div className="flex items-center gap-2 mt-2 bg-white text-[#7A5C45] px-3 py-0 rounded-full text-sm font-medium shadow-sm">
+                        <MdChair size={14} />
+                        <span>{room.room_capacity} Seats</span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Date & Time Pickers */}
+            {/* Date & Time */}
             <div className="flex flex-col md:flex-row gap-4 items-start mt-6">
-              <div className="flex flex-col w-full sm:w-1/3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date
-                </label>
+              <div className="flex flex-col w-[60%] sm:w-1/3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <DatePicker
-                  selected={startTime}
-                  onChange={(date) => {
-                    const newDate = new Date(date);
-                    newDate.setHours(
-                      startTime.getHours(),
-                      startTime.getMinutes(),
-                    );
-                    setStartTime(newDate);
-
-                    const newEnd = new Date(date);
-                    newEnd.setHours(endTime.getHours(), endTime.getMinutes());
-                    setEndTime(newEnd);
+                  selected={startDate}
+                  onChange={() => {
+                    setStartDate(startDate);
                   }}
                   dateFormat="d-MMM-yyyy"
                   placeholderText="Select Booking Date"
-                  className="w-full md:w-[72%] border border-gray-300 p-3 bg-white rounded-xl"
-                  showTimeSelect={false}
+                  minDate={now}
+                  customInput={<CustomInput />}
                 />
               </div>
 
               <div className="flex flex-col w-full sm:w-1/3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Time
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
                 <DatePicker
                   selected={startTime}
                   onChange={(time) => {
-                    const newStart = new Date(startTime);
-                    newStart.setHours(time.getHours(), time.getMinutes());
+                    if (!time) return;
+                    const newStart = new Date(time);
+                    if (newStart < now) {
+                      toast.error('Start time must be in the future');
+                      return;
+                    }
                     setStartTime(newStart);
 
-                    const newEnd = new Date(newStart);
-                    newEnd.setMinutes(newEnd.getMinutes() + 30);
+                    const newEnd = new Date(newStart.getTime() + 30 * 60000);
                     setEndTime(newEnd);
                   }}
                   showTimeSelect
                   showTimeSelectOnly
                   timeIntervals={15}
-                  timeCaption="Start Time"
                   dateFormat="hh:mm aa"
-                  minTime={
-                    startTime.toDateString() === new Date().toDateString()
-                      ? new Date()
-                      : new Date().setHours(0, 0, 0)
-                  }
-                  maxTime={new Date().setHours(23, 45)}
-                  className="w-full md:w-[60%] border border-gray-300 p-3 bg-white rounded-xl"
+                  customInput={<CustomInput />}
                 />
               </div>
 
               <div className="flex flex-col w-full sm:w-1/3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Time
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
                 <DatePicker
                   selected={endTime}
                   onChange={(time) => {
                     const newEnd = new Date(endTime);
                     newEnd.setHours(time.getHours(), time.getMinutes());
+                    if (newEnd <= startTime) {
+                      toast.error('End time must be greater than start time');
+                      return;
+                    }
                     setEndTime(newEnd);
                   }}
                   showTimeSelect
                   showTimeSelectOnly
                   timeIntervals={15}
-                  timeCaption="End Time"
                   dateFormat="hh:mm aa"
                   minTime={startTime}
                   maxTime={new Date().setHours(23, 45)}
-                  className="w-full  md:w-[60%] border border-gray-300 p-3 bg-white rounded-xl"
+                  customInput={<CustomInput />}
                 />
               </div>
+            </div>
+
+            {/* Recurrence */}
+            <div className="flex flex-col gap-2 mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence</label>
+              <Select
+                options={[
+                  { value: null, label: 'None' },
+                  { value: 'DAILY', label: 'Daily' },
+                  { value: 'WEEKLY', label: 'Weekly' },
+                  { value: 'MONTHLY', label: 'Monthly' },
+                ]}
+                value={[
+                  { value: null, label: 'None' },
+                  { value: 'DAILY', label: 'Daily' },
+                  { value: 'WEEKLY', label: 'Weekly' },
+                  { value: 'MONTHLY', label: 'Monthly' },
+                ].find((opt) => opt.value === recurrenceRule)}
+                onChange={(option) => setRecurrenceRule(option?.value || null)}
+                styles={customStyles}
+              />
+              {recurrenceRule && (
+                <DatePicker
+                  selected={recurrenceEndDate}
+                  onChange={setRecurrenceEndDate}
+                  dateFormat="d-MMM-yyyy"
+                  placeholderText="Recurrence End Date"
+                  minDate={startTime}
+                  className="border border-gray-300 p-2 rounded-lg w-full md:w-[70%]"
+                />
+              )}
             </div>
 
             <motion.button
@@ -332,65 +331,54 @@ export default function BookRoom() {
             </motion.button>
           </form>
 
-          {/* Filters & Bookings Section */}
-          <div className="flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-[#3C2F2F]">
-                {selectedRoom
-                  ? `Bookings for ${rooms.find((r) => r.id === selectedRoom)?.name}`
-                  : 'Bookings'}
-              </h2>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-2 rounded-full hover:bg-gray-100 transition-all"
-              >
-                <MdFilterList className="text-2xl text-[#7A5C45]" />
-              </button>
-            </div>
+          <div className="space-y-4">
+            {/* Filter Toggle */}
+            <button
+              onClick={() => setShowFilters((prev) => !prev)}
+              className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#7A5C45] text-white hover:bg-[#9c7353] transition-all"
+            >
+              <MdFilterList size={20} />
+              <span>Filters</span>
+            </button>
 
+            {/* Filters Panel */}
             <AnimatePresence>
               {showFilters && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mb-6 p-4 bg-white rounded-lg shadow-md space-y-4"
+                  className="p-4 bg-white rounded-lg shadow-md space-y-4"
                 >
+                  {/* Room Filter */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Filter by Room
                     </label>
                     <Select
-                      options={[{ value: 'all', label: 'All' }, ...roomOptions]}
-                      value={
-                        [{ value: 'all', label: 'All' }, ...roomOptions].find(
-                          (option) => option.value === filterRoom,
-                        ) || null
-                      }
-                      onChange={(selectedOption) =>
-                        setFilterRoom(
-                          selectedOption ? selectedOption.value : 'all',
-                        )
-                      }
+                      options={[{ value: 'all', label: 'All' }, ...(roomOptions || [])]}
+                      value={[{ value: 'all', label: 'All' }, ...(roomOptions || [])].find(
+                        (option) => option.value === filterRoom,
+                      )}
+                      onChange={(selectedOption) => setFilterRoom(selectedOption?.value || 'all')}
                       placeholder="Select Room"
                       isClearable={false}
                       styles={customStyles}
                     />
                   </div>
 
+                  {/* Filter Mode */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Filter Mode
                     </label>
                     <div className="flex gap-3 flex-wrap">
-                      {['all', 'today', 'upcoming'].map((mode) => (
+                      {['today', 'upcoming', 'range'].map((mode) => (
                         <button
                           key={mode}
                           onClick={() => setFilterMode(mode)}
                           className={`px-3 py-1 rounded-lg border cursor-pointer ${
-                            filterMode === mode
-                              ? 'bg-[#7A5C45] text-white'
-                              : 'bg-white'
+                            filterMode === mode ? 'bg-[#7A5C45] text-white' : 'bg-white'
                           }`}
                         >
                           {mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -399,109 +387,113 @@ export default function BookRoom() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Filter by Date Range
-                    </label>
-                    <div className="flex justify-around items-center mb-2 gap-2">
-                      <DatePicker
-                        selected={fromDate}
-                        onChange={(date) => setFromDate(date)}
-                        showTimeSelect
-                        dateFormat="Pp"
-                        placeholderText="From Date"
-                        className="border border-gray-300 p-2 rounded-lg w-full md:w-[60%]"
-                      />
-                      <DatePicker
-                        selected={toDate}
-                        onChange={(date) => setToDate(date)}
-                        showTimeSelect
-                        dateFormat="Pp"
-                        placeholderText="To Date"
-                        className="border border-gray-300 p-2 rounded-lg w-full md:w-[60%]"
-                      />
-                      <button
-                        onClick={() => {
-                          setFromDate(null);
-                          setToDate(null);
-                        }}
-                        className="px-2 py-2 bg-[#7A5C45] text-white rounded-lg hover:bg-[#9c7353] transition-all cursor-pointer"
-                      >
-                        Clear
-                      </button>
+                  {/* Date Range */}
+                  {filterMode === 'range' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Filter by Date Range
+                      </label>
+                      <div className="flex flex-col gap-2">
+                        <DatePicker
+                          selected={fromDate}
+                          onChange={setFromDate}
+                          showTimeSelect
+                          dateFormat="dd MMM h:mm aa"
+                          placeholderText="From Date"
+                          className="border border-gray-300 p-2 rounded-lg w-full"
+                        />
+                        <DatePicker
+                          selected={toDate}
+                          onChange={setToDate}
+                          showTimeSelect
+                          dateFormat="dd MMM h:mm aa"
+                          placeholderText="To Date"
+                          className="border border-gray-300 p-2 rounded-lg w-full"
+                        />
+                        <button
+                          onClick={() => {
+                            setFromDate(null);
+                            setToDate(null);
+                          }}
+                          className="px-2 py-2 bg-[#7A5C45] text-white rounded-lg hover:bg-[#9c7353] transition-all w-full"
+                        >
+                          Clear Filters
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
 
             {/* Bookings List */}
-            <div className="max-h-[350px] overflow-y-auto mb-4 scrollbar-hide">
-              {paginatedBookings.length > 0 ? (
+            <div className="max-h-[69vh] overflow-y-auto">
+              {bookings.length > 0 ? (
                 <ul className="space-y-2">
-                  {paginatedBookings.map((slot) => {
-                    const start = new Date(slot.start_time);
-                    const end = new Date(slot.end_time);
-                    return (
-                      <li
-                        key={slot.booking_id}
-                        className="text-sm text-gray-700 bg-white p-3 rounded-lg shadow-sm"
-                      >
-                        <div>{slot.booked_by}</div>
-                        {(!selectedRoom || selectedRoom === 'all') && (
-                          <div>{`Room Name: ${slot.roomName}`}</div>
-                        )}
-                        <div>{`${format(start, 'd-MMM-yyyy, hh:mm aa')} to ${format(end, 'd-MMM-yyyy, hh:mm aa')}`}</div>
-                        <div>{slot.name}</div>
-                      </li>
-                    );
-                  })}
+                  {bookings.map((room) => (
+                    <li key={room.room_id}>
+                      <ul className="space-y-2 ml-4">
+                        {room.bookings.map((slot) => {
+                          const start = new Date(slot.start_time);
+                          const end = new Date(slot.end_time);
+                          return (
+                            <li
+                              key={slot.booking_id}
+                              className="text-sm text-gray-700 bg-white p-3 rounded-lg shadow-sm"
+                            >
+                              <div className="inline-block bg-[#7A5C45] text-white text-[1rem] px-2 py-1 rounded-full mb-2">
+                                {room.room_name}
+                              </div>
+                              <div className="font-semibold">{slot.booked_by}</div>
+                              <div className="text-gray-500 text-xs mt-1">
+                                {start.toDateString() === end.toDateString() ? (
+                                  <>
+                                    {format(start, 'd-MMM-yyyy')}, {format(start, 'hh:mm aa')} to{' '}
+                                    {format(end, 'hh:mm aa')}
+                                  </>
+                                ) : (
+                                  <>
+                                    {format(start, 'd-MMM-yyyy, hh:mm aa')} to{' '}
+                                    {format(end, 'd-MMM-yyyy, hh:mm aa')}
+                                  </>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </li>
+                  ))}
                 </ul>
               ) : (
-                <p className="text-gray-500 text-sm">
-                  {selectedRoom
-                    ? 'No bookings for this room'
-                    : 'No bookings found'}
+                <p className="text-gray-500 text-sm text-center mt-4">
+                  No bookings found for the selected filters.
                 </p>
               )}
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2">
+            {/* Pagination */}
+            {bookings.length > 0 && totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 mt-4">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
                   className={`px-3 py-1 rounded-lg border ${
-                    currentPage === 1
-                      ? 'bg-gray-200 text-gray-500'
-                      : 'bg-white hover:bg-gray-100'
+                    currentPage === 1 ? 'bg-[#7a6f6f] text-white' : 'bg-[#7a5c45] text-white'
                   }`}
                 >
-                  Previous
+                  Prev
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`px-3 py-1 rounded-lg border ${
-                        page === currentPage
-                          ? 'bg-[#7A5C45] text-white'
-                          : 'bg-white hover:bg-gray-100'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ),
-                )}
+                <span className="px-3 py-1">
+                  {currentPage} / {totalPages}
+                </span>
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className={`px-3 py-1 rounded-lg border ${
                     currentPage === totalPages
-                      ? 'bg-gray-200 text-gray-500'
-                      : 'bg-white hover:bg-gray-100'
+                      ? 'bg-[#7a6f6f] text-white'
+                      : 'bg-[#7a5c45] text-white'
                   }`}
                 >
                   Next

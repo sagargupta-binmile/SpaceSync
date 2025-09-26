@@ -5,8 +5,9 @@ import { useState } from 'react';
 
 export default function Navbar() {
   const { user, logout } = useUserContext();
+
   const navigate = useNavigate();
-  const location = useLocation(); // <--- get current route
+  const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleLogout = () => {
@@ -23,7 +24,6 @@ export default function Navbar() {
     return (first + last).toUpperCase();
   };
 
-  // Map routes to dynamic title
   const getTitle = () => {
     switch (location.pathname) {
       case '/':
@@ -32,31 +32,41 @@ export default function Navbar() {
         return 'Bookings';
       case '/profile':
         return 'Profile';
+      case '/user-access':
+        return 'Users Information';
       default:
         return 'Book Room';
     }
   };
 
   return (
-    <div className=" flex flex-col bg-gradient-to-b from-[#f6efe9] to-[#e7ded6] h-screen overflow-y-hidden">
+    <div className="flex flex-col bg-gradient-to-b from-[#f6efe9] to-[#e7ded6] h-screen overflow-y-hidden">
       <nav className="sticky top-0 z-50 bg-white/40 backdrop-blur-lg border-b border-white/30 shadow-md">
         <div className="max-w-6xl mx-auto flex justify-between items-center px-6 py-4">
-          {/* Brand */}
-          <Link
-            to="/"
-            className="flex items-center space-x-2 text-2xl font-bold text-[#3c2f2f] tracking-wide"
-          >
-            <img
-              src={logo}
-              alt="logo"
-              className="w-10 h-10 rounded-full object-cover shadow-md"
-            />
-            <span>{getTitle()}</span> {/* <-- dynamic title */}
-          </Link>
+          {user ? (
+            <Link
+              to="/"
+              className="flex items-center space-x-2 text-2xl font-bold text-[#3c2f2f] tracking-wide"
+            >
+              <img
+                src={logo}
+                alt="logo"
+                className="w-10 h-10 rounded-full object-cover shadow-md"
+              />
+              <span>{getTitle()}</span>
+            </Link>
+          ) : (
+            <div className="flex items-center space-x-2 text-2xl font-bold text-[#3c2f2f] tracking-wide  opacity-100">
+              <img
+                src={logo}
+                alt="logo"
+                className="w-10 h-10 rounded-full object-cover shadow-md"
+              />
+            </div>
+          )}
 
-          {/* Menu / User Dropdown */}
-          <div className="flex items-center gap-6 text-[#3c2f2f] font-medium relative">
-            {user?.name ? (
+          {user ? (
+            <div className="flex items-center gap-6 text-[#3c2f2f] font-medium relative">
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen((prev) => !prev)}
@@ -88,6 +98,11 @@ export default function Navbar() {
                     >
                       Bookings
                     </Link>
+                    {user?.role==='Super Admin' &&
+                    <Link to='user-access'
+                    className="block px-4 py-3 hover:bg-gradient-to-b from-[#f6efe9] to-[#e7ded6] text-gray-800"
+                      onClick={() => setDropdownOpen(false)}>Users</Link>}
+
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-3 hover:bg-gradient-to-b from-[#f6efe9] to-[#e7ded6] text-gray-800"
@@ -97,9 +112,8 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
-            ) : (null
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </nav>
 

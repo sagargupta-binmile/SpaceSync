@@ -39,9 +39,7 @@ function Home() {
                 <FaUserTie className="text-4xl text-[#7a5c45]" />
               </motion.div>
             </div>
-            <h1 className="text-2xl font-semibold text-[#3c2f2f]">
-              Hi, {user.name}
-            </h1>
+            <h1 className="text-2xl font-semibold text-[#3c2f2f]">Hi, {user.name}</h1>
           </motion.div>
 
           {/* Book Room Section */}

@@ -8,6 +8,8 @@ export class Room {
 
   @Column()
   name: string;
+  @Column()
+  capacity:number;
 
   @OneToMany(() => Booking, (booking) => booking.room)
   bookings: Booking[];

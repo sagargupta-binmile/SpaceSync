@@ -1,0 +1,45 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+
+      # Backend
+      - name: Build & push backend
+        run: |
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/nest-backend ./server
+
+      - name: Deploy backend
+        run: |
+          gcloud run deploy nest-backend \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/nest-backend \
+            --platform managed \
+            --region ${{ secrets.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-secrets JWT_SECRET=JWT_SECRET:RMS_URL=RMS_URL
+
+      # Frontend
+      - name: Build & push frontend
+        run: |
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/react-frontend ./client
+
+      - name: Deploy frontend
+        run: |
+          gcloud run deploy react-frontend \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/react-frontend \
+            --platform managed \
+            --region ${{ secrets.GCP_REGION }} \
+            --allow-unauthenticated

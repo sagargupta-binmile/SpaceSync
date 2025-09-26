@@ -14,8 +14,12 @@ export class RoomsService {
     const room = this.roomRepositery.create(roomData);
     return this.roomRepositery.save(room);
   }
-  //find all rooms
-  async fetchAll(): Promise<Room[]> {
-    return this.roomRepositery.find();
-  }
+
+ 
+  async fetchAll(): Promise<RoomDto[]> {
+  return this.roomRepositery
+    .createQueryBuilder('room')
+    .getRawMany(); 
+}
+
 }
