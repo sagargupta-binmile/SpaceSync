@@ -60,12 +60,15 @@ export class BookingsController {
 
   @UseGuards(JwtAuthGuard)
   @Patch()
-  updateBookings(@Body(new ZodValidationPipe(UpdateBookingSchema)) updateDto: UpdateBookingDto,@Req()req) {
-     const googleTokens = {
+  updateBookings(
+    @Body(new ZodValidationPipe(UpdateBookingSchema)) updateDto: UpdateBookingDto,
+    @Req() req,
+  ) {
+    const googleTokens = {
       accessToken: req.user.googleAccessToken,
       refreshToken: req.user.googleRefreshToken,
     };
-    return this.bookingsService.updateBooking(updateDto,googleTokens);
+    return this.bookingsService.updateBooking(updateDto, googleTokens);
   }
   @UseGuards(JwtAuthGuard)
   @Delete(':booking_id')
@@ -74,5 +77,10 @@ export class BookingsController {
     @Body('deleteSeries') deleteSeries: boolean,
   ) {
     return this.bookingsService.deleteBooking(booking_id, deleteSeries);
+  }
+  @UseGuards(JwtAuthGuard)
+  @Get('global')
+  async getGlobalCalendar(@Query('from') from: string, @Query('to') to: string) {
+    return this.bookingsService.getGlobalBookings(from, to);
   }
 }

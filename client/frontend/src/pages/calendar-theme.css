@@ -1,0 +1,30 @@
+/* Toolbar buttons */
+.fc .fc-toolbar-chunk .fc-button {
+  background-color: #8B4513 !important; /* brown */
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  margin: 6px;
+  transition: all 0.2s ease-in-out;
+
+}
+
+/* Hover effect */
+.fc .fc-toolbar-chunk .fc-button:hover {
+  background-color: #5C4033 !important; /* darker brown */
+}
+
+/* Active/selected state */
+.fc .fc-toolbar-chunk .fc-button-active {
+  background-color: #000000 !important; /* light purple highlight */
+  color: #ffffff !important;
+}
+
+/* Event styling */
+.fc .fc-event {
+  border-radius: 8px !important;
+  font-weight: 500;
+  border: 1px solid #C084FC !important; /* light purple border */
+  overflow: hidden;
+}

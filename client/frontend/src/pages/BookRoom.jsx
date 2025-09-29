@@ -2,11 +2,12 @@ import { useEffect, useState, forwardRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useUserContext } from '../context/context';
-import { MdChair, MdEvent, MdFilterList } from 'react-icons/md';
+import { MdChair, MdEvent, MdFilterList,MdClose } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import Select from 'react-select';
+import GlobalCalendar from './GlobalCalendar';
 
 const CustomInput = forwardRef(({ value, onClick }, ref) => (
   <input
@@ -20,6 +21,7 @@ const CustomInput = forwardRef(({ value, onClick }, ref) => (
 
 export default function BookRoom() {
   const { roomBooking, bookings, rooms, fetchRooms, fetchBookings, user } = useUserContext();
+   const [showCalendar, setShowCalendar] = useState(false);
 
   const roundToNextFive = (date) => {
     const newDate = new Date(date);
@@ -128,6 +130,7 @@ export default function BookRoom() {
     setStartTime(roundToNextFive(new Date()));
     return () => clearInterval(interval);
   }, []);
+  
 
   const handleBooking = async (e) => {
     e.preventDefault();
@@ -172,9 +175,11 @@ export default function BookRoom() {
 
   return (
     <div className="h-full flex justify-center items-start py-4 px-4 sm:px-6 lg:px-8">
-      <div className="bg-white/70 backdrop-blur-xl shadow-xl shadow-[#C4B6A6]/40 rounded-3xl w-full h-screen md:max-h-[82vh] overflow-y-auto mb-4 scrollbar-hide p-4 sm:p-8 lg:p-6 border border-[#E0D4C7]">
+      <div className="bg-white/70 backdrop-blur-xl shadow-xl shadow-[#C4B6A6]/40 rounded-3xl w-full h-[87vh] md:max-h-[82vh] overflow-y-auto mb-4 scrollbar-hide p-4 sm:p-8 lg:p-6 border border-[#E0D4C7]">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Booking Form */}
+
+          
           <form onSubmit={handleBooking} className="space-y-4 sm:space-y-5 ">
             {/* User Info */}
             <div className="flex items-center gap-3 mt-2">
@@ -333,13 +338,21 @@ export default function BookRoom() {
 
           <div className="space-y-4">
             {/* Filter Toggle */}
-            <button
+          <div className='flex justify-between'>
+              <button
               onClick={() => setShowFilters((prev) => !prev)}
               className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#7A5C45] text-white hover:bg-[#9c7353] transition-all"
             >
               <MdFilterList size={20} />
               <span>Filters</span>
             </button>
+            <button
+        onClick={() => setShowCalendar(true)}
+        className="px-4 py-2 bg-[#7A5C45] text-white rounded-lg hover:bg-[#9c7353] transition-all"
+      >
+        Show Calendar
+      </button>
+          </div>
 
             {/* Filters Panel */}
             <AnimatePresence>
@@ -503,6 +516,43 @@ export default function BookRoom() {
           </div>
         </div>
       </div>
+
+        <AnimatePresence>
+        {showCalendar && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCalendar(false)}
+              className="fixed inset-0 bg-black z-40"
+            ></motion.div>
+
+            {/* Calendar Popup */}
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="fixed inset-0 z-50 flex justify-center items-center p-4 "
+            >
+              <div className="bg-gradient-to-b from-[#f6efe9] to-[#e7ded6] rounded-3xl shadow-xl w-full max-w-5xl h-[80vh] overflow-auto relative p-6 scrollbar-hide mt-14">
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowCalendar(false)}
+                  className="absolute top-4 right-4 text-[#7A5C45] hover:text-[#5c4033] text-3xl font-bold"
+                >
+                  <MdClose />
+                </button>
+
+                {/* Global Calendar */}
+                <GlobalCalendar />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

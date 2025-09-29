@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('push_subscriptions')
 export class PushSubscription {
@@ -8,7 +14,7 @@ export class PushSubscription {
   @Column({ type: 'uuid' })
   userId: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', unique: true })
   endpoint: string;
 
   @Column({ type: 'text' })

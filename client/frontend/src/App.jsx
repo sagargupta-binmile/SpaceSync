@@ -29,16 +29,15 @@ export default function App() {
   const location = useLocation();
   const { user, loading } = useUserContext();
 
-  if (user) {
-    if (user.role === 'Super Admin') {
+  
+    
       useEffect(() => {
         if (!user) return;
-        console.log(user);
+      
         const isSuperAdmin = user.email === 'sunit@binmile.com';
-        console.log(isSuperAdmin);
         if (isSuperAdmin === 'false') return;
 
-        if ('Notification' in window && Notification.permission !== 'granted' && isSuperAdmin) {
+        if ('Notification' in window && Notification.permission !== 'granted' ) {
           Notification.requestPermission().then((permission) => {
             if (permission === 'granted') {
               subscribeUser();
@@ -50,8 +49,7 @@ export default function App() {
           subscribeUser();
         }
       }, [user]);
-    }
-  }
+    
 
   if (loading) {
     return (

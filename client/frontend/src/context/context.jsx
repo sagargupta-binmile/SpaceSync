@@ -22,6 +22,7 @@ export function UserContextProvider({ children }) {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState([]);
+  const [calendar,setCalendar]=useState({})
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -80,7 +81,17 @@ export function UserContextProvider({ children }) {
     toast.info('Logged out successfully');
     window.location.href = '/login';
   };
-
+const getCalendar=()=>{
+      api.get('http://localhost:4000/bookings/global').then((res) => {
+        
+      const formatted = res.data.map((b) => ({
+        title: `${b.room.name} - ${b.user.name}`,
+        start: b.startTime,
+        end: b.endTime,
+      }));
+      setCalendar(formatted);
+    });
+}
   // Booking functions
   const roomBooking = async (data) => {
     try {
@@ -229,6 +240,8 @@ export function UserContextProvider({ children }) {
         loading,
         setLoading,
         toggleBlockUser,
+        getCalendar,
+        calendar,
       }}
     >
       {children}

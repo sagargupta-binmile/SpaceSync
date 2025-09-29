@@ -228,11 +228,12 @@ export class BookingsService {
       //super admin
       const superAdmin = await this.usersService.findByEmail('sunit@binmile.com');
       const superAdminId = superAdmin?.id;
-      console.log('sending pop up notification',superAdminId)
-      if (superAdminId ) {
+      console.log('sending pop up notification', superAdminId);
+      if (superAdminId) {
         await this.pushService.sendNotification(superAdminId, {
-          title: ` ${firstBooking.user.name} booked ${firstBooking.room.name} from ${firstBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${firstBooking.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-          message:'' ,
+          title: `${firstBooking.user.name} booked ${firstBooking.room.name}`, 
+          message: ` ${firstBooking.user.name} booked ${firstBooking.room.name} From ${firstBooking.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${firstBooking.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, // details in body
+          icon: '', // optional
         });
       }
     }
@@ -500,5 +501,19 @@ export class BookingsService {
       bookings: Array.from(grouped.values()) || [],
       totalPages,
     };
+  }
+
+  // global calendar
+  async getGlobalBookings(from?: string, to?: string) {
+    const qb = this.bookingRepositery
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.room', 'room')
+      .leftJoinAndSelect('booking.user', 'user');
+
+    if (from && to) {
+      qb.andWhere('booking.startTime >= :from AND booking.endTime <= :to', { from, to });
+    }
+
+    return qb.getMany();
   }
 }
